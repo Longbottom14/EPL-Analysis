@@ -1,0 +1,72 @@
+    for year in years:    
+        print('Year === : ',year)
+        data = requests.get(standings_url)
+        soup = BeautifulSoup(data.text)
+        standings_table = soup.select('table.stats_table')[0]
+
+        links = [l.get("href") for l in standings_table.find_all('a')]
+        links = [l for l in links if '/squads/' in l]
+        team_urls = [f"https://fbref.com{l}" for l in links]
+
+        previous_season = soup.select("a.prev")[0].get("href")
+        standings_url = f"https://fbref.com{previous_season}"
+    
+        for team_url in team_urls:
+            team_name = team_url.split("/")[-1].replace("-Stats", "").replace("-", " ")
+            data = requests.get(team_url)
+            matches = pd.read_html(data.text, match="Scores & Fixtures")[0]
+            soup = BeautifulSoup(data.text)
+            print(f"Starting {year} {team_name} Process")
+            a = matches.copy()
+
+            shooting = grab_data(pattern='shooting',data_main=data ,match='Shooting')
+            b = clean_data(df=shooting,renamed_col=Shooting_renamed_col,df_name='Shooting')
+
+            GSA = grab_data(pattern='gca',data_main=data ,match="Goal and Shot")
+            c = clean_data(df=GSA,renamed_col=GSA_renamed_col,df_name='GSA')
+
+            DEF = grab_data(pattern='defense',data_main=data ,match="Defensive Actions")
+            d = clean_data(df=DEF,renamed_col=Defensive_Actions_renamed_col,df_name='Defensive Actions')
+
+            goalie = grab_data(pattern='keeper', data_main=data, match="Goalkeeping")
+            e = clean_data(df=goalie,renamed_col=Goalkeeping_renamed_col,df_name='Goalkeeping')
+
+            passing = grab_data(pattern='passing', data_main=data, match="Passing")
+            f = clean_data(df=passing, renamed_col = Passing_renamed_col ,df_name='Passing')
+
+            pass_types = grab_data(pattern='passing_types', data_main=data, match="Pass Types")
+            g = clean_data(df=pass_types,renamed_col=PassingType_renamed_col,df_name='PassingType')
+
+            possession = grab_data(pattern='possession', data_main=data, match="Possession")
+            h = clean_data(df=possession,renamed_col=Possession_renamed_col,df_name='Possession')
+
+            Misc_data = grab_data(pattern='misc', data_main=data, match="Miscellaneous Stats")
+            i = clean_data(df=Misc_data,renamed_col=Miscellaneous_Stats_renamed_col ,df_name='Miscellaneous_Stats')
+
+            #merge
+            #a['Team'] = team_name 
+            try:
+                #team_data = matches.merge(shooting[shooting.columns.drop(drops)], on="Date")
+                a['Team'] = team_name 
+                #b['Team'] = team_name 
+                #b.drop(['Date'],axis=1,inplace=True)
+                ab = a.merge(b, on="Date")
+                abc = ab.merge(c, on="Date")
+                abcd = abc.merge(d, on="Date")
+                abcde = abcd.merge(e, on="Date")
+                #f['Team'] = team_name
+                #f.drop(['Date'],axis=1,inplace=True)
+                abcdef = abcde.merge(f, on="Date")
+                abcdefg = abcdef.merge(g, on="Date")
+                abcdefgh = abcdef.merge(h, on="Date")
+                abcdefghi = abcdef.merge(i, on="Date")
+                print(f"Merged df shape of {year} {team_name} : ",abcdefghi.shape)
+                team_data = abcdefghi
+            except ValueError:
+                continue
+            #team_data = team_data[team_data["Comp"] == "Premier League"]
+            team_data["Season"] = year
+            path = str(year)+".csv" 
+            team_data.to_csv(path)
+            all_matches.append(team_data)
+            time.sleep(1)
